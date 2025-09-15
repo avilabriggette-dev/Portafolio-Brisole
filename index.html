@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Brisole Digital</title>
+    <!-- Incluye una fuente de Google y Tailwind CSS para un diseño moderno y responsivo -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Configuración e imports de Firebase para la base de datos Firestore y autenticación -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, where } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Variables globales proporcionadas por el entorno
+        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        
+        // Inicializa Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+        
+        // Exponemos las variables para que el script principal las use
+        window.app = app;
+        window.db = db;
+        window.auth = auth;
+        window.appId = appId;
+        window.initialAuthToken = initialAuthToken;
+
+        // Autenticación inicial
+        onAuthStateChanged(auth, async (user) => {
+            if (!user) {
+                if (initialAuthToken) {
+                    try {
+                        await signInWithCustomToken(auth, initialAuthToken);
+                    } catch (error) {
+                        console.error("Error al iniciar sesión con token personalizado:", error);
+                        await signInAnonymously(auth);
+                    }
+                } else {
+                    await signInAnonymously(auth);
+                }
+            }
+        });
+    </script>
+    <style>
+        /* Estilos personalizados para la cuadrícula de medios */
+        .media-grid-item {
+            position: relative;
+            aspect-ratio: 16 / 9; /* Mantener una relación de aspecto consistente */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            border-radius: 0.75rem; /* rounded-xl */
+            transition: transform 0.3s ease;
+        }
+        .media-grid-item:hover {
+            transform: scale(1.03); /* Efecto de acercamiento al pasar el mouse */
+        }
+        .media-grid-item video,
+        .media-grid-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover; /* Asegura que el medio llene el contenedor */
+            transition: filter 0.3s ease;
+        }
+        .media-grid-item:hover video,
+        .media-grid-item:hover img {
+            filter: brightness(0.7); /* Oscurece el medio al pasar el mouse */
+        }
+        /* Oculta el input de archivo y lo activa con un botón */
+        #fileInput {
+            display: none;
+        }
+        /* Estilo del botón desbloqueado */
+        .unlocked-button {
+            background-image: linear-gradient(to right, #6366F1, #EC4899, #F59E0B);
+            background-size: 200% auto;
+            transition: background-position 0.5s ease;
+            cursor: pointer;
+        }
+        .unlocked-button:hover {
+            background-position: right center;
+        }
+        /* Estilo del botón bloqueado */
+        .locked-button {
+            background-color: #4B5563; /* gris */
+            cursor: not-allowed;
+        }
+        h1, h2 {
+            font-family: 'Poppins', sans-serif;
+        }
+        .section-tab.active {
+            border-bottom: 3px solid;
+            border-image: linear-gradient(to right, #6366F1, #EC4899, #F59E0B) 1;
+        }
+    </style>
+</head>
+<body class="bg-gray-950 text-gray-100 font-sans p-4 md:p-8">
+
+    <!-- Contenedor principal con estilo moderno -->
+    <div class="max-w-6xl mx-auto">
+        <!-- Encabezado de la página con degradado vibrante -->
+        <header class="text-center mb-8 bg-gray-900 p-6 rounded-2xl shadow-lg relative">
+            <h1 class="text-4xl md:text-5xl font-extrabold mb-2 text-transparent bg-clip-text bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500">BRISOLE DIGITAL</h1>
+            <p class="text-lg text-gray-400">Tu visión, nuestra creación Digital</p>
+            <p id="userIdDisplay" class="text-sm text-gray-500 mt-2 hidden">ID de Usuario: Cargando...</p>
+            <!-- Botón de bloqueo/desbloqueo -->
+            <button id="lockButton" class="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors duration-300">
+                <svg id="lockIcon" xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-3a2 2 0 00-2-2H6a2 2 0 00-2 2v3a2 2 0 002 2z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M11 5v4h2V5a2 2 0 00-2-2h-1a2 2 0 00-2 2V5a2 2 0 00-2 2v4a2 2 0 00-2 2v3a2 2 0 002 2h12a2 2 0 002-2v-3a2 2 0 00-2-2v-4a2 2 0 00-2-2h-1a2 2 0 00-2 2z" />
+                </svg>
+            </button>
+        </header>
+
+        <!-- Sección de subida de archivos, creación de secciones y control de acceso -->
+        <section class="bg-gray-900 p-6 rounded-2xl shadow-lg mb-8 text-center flex flex-col items-center sm:flex-row sm:justify-center sm:space-x-4 space-y-4 sm:space-y-0">
+            <!-- Sección de subida de medios -->
+            <div id="uploadContainer" class="flex-grow hidden">
+                <p class="text-gray-400 mb-2 sm:mb-0">
+                    Sube archivos a la sección activa.
+                </p>
+                <input type="file" id="fileInput" multiple accept="image/*,video/*">
+                <button id="uploadButton" class="locked-button text-white font-bold py-3 px-8 rounded-full shadow-lg transition-all duration-300 transform w-full sm:w-auto" disabled>
+                    Subir Medios
+                </button>
+            </div>
+            <div class="h-10 sm:h-auto sm:w-px bg-gray-700 hidden sm:block"></div>
+            <!-- Sección para crear nueva sección -->
+            <div id="addSectionContainer" class="flex-grow hidden">
+                <p class="text-gray-400 mb-2 sm:mb-0">
+                    Crea una nueva sección para organizar tu trabajo.
+                </p>
+                <button id="addSectionButton" class="locked-button text-white font-bold py-3 px-8 rounded-full shadow-lg transition-all duration-300 transform w-full sm:w-auto" disabled>
+                    Crear Nueva Sección
+                </button>
+            </div>
+        </section>
+
+
+        <!-- Navegación de secciones (tabs) -->
+        <nav class="mb-8 flex flex-wrap justify-center space-x-4">
+            <!-- Los tabs se renderizarán aquí -->
+        </nav>
+
+        <!-- Contenedor para la galería de medios de la sección activa -->
+        <section>
+            <h2 id="currentSectionTitle" class="text-3xl font-bold mb-4 text-center text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-orange-500 hidden"></h2>
+            <div id="mediaGallery" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                <!-- Los medios se renderizarán aquí -->
+            </div>
+        </section>
+
+        <!-- Mensaje para cuando la galería está vacía -->
+        <section id="emptyState" class="text-center p-12 bg-gray-900 rounded-2xl shadow-lg hidden">
+            <div class="text-gray-600 mb-4">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-24 w-24 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+            </div>
+            <p class="text-xl text-gray-400 font-semibold">¡Tu portafolio está listo!</p>
+            <p class="text-gray-500 mt-2">Sube tu primer video o imagen para que aparezcan aquí.</p>
+        </section>
+    </div>
+    
+    <!-- Modal para crear una nueva sección -->
+    <div id="sectionModal" class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-gray-900 p-8 rounded-xl shadow-2xl w-full max-w-sm border-2 border-purple-500 transform transition-transform duration-300 scale-95">
+            <h3 class="text-2xl font-bold mb-4 text-white">Nombre de la Nueva Sección</h3>
+            <input type="text" id="sectionNameInput" placeholder="Ej: Fotografía, Videos, Proyectos" class="w-full p-3 mb-4 rounded-lg bg-gray-800 text-gray-200 border-2 border-gray-700 focus:outline-none focus:border-purple-500">
+            <p id="sectionError" class="text-red-400 mb-4 hidden">Esta sección ya existe. Por favor, elige un nombre diferente.</p>
+            <div class="flex justify-end space-x-4">
+                <button id="cancelSectionButton" class="bg-gray-700 text-white font-semibold py-2 px-4 rounded-full hover:bg-gray-600 transition-colors">
+                    Cancelar
+                </button>
+                <button id="saveSectionButton" class="unlocked-button text-white font-semibold py-2 px-4 rounded-full shadow-lg transform hover:scale-105">
+                    Guardar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Nuevo Modal para la contraseña -->
+    <div id="passwordModal" class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-gray-900 p-8 rounded-xl shadow-2xl w-full max-w-sm border-2 border-purple-500 transform transition-transform duration-300 scale-95">
+            <h3 id="passwordModalTitle" class="text-2xl font-bold mb-4 text-white">Desbloquear Edición</h3>
+            <input type="password" id="passwordInput" placeholder="Ingresa la contraseña" class="w-full p-3 mb-4 rounded-lg bg-gray-800 text-gray-200 border-2 border-gray-700 focus:outline-none focus:border-purple-500">
+            <p id="authError" class="text-red-400 mb-4 hidden">Contraseña incorrecta. Intenta de nuevo.</p>
+            <div class="flex justify-end space-x-4">
+                <button id="cancelPasswordButton" class="bg-gray-700 text-white font-semibold py-2 px-4 rounded-full hover:bg-gray-600 transition-colors">
+                    Cancelar
+                </button>
+                <button id="unlockButton" class="unlocked-button text-white font-semibold py-2 px-4 rounded-full shadow-lg transform hover:scale-105">
+                    Desbloquear
+                </button>
+            </div>
+        </div>
+    </div>
+
+
+    <script type="module">
+        import { collection, query, where, onSnapshot, addDoc, doc, updateDoc, deleteDoc, getDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Referencias a los elementos del DOM
+        const uploadContainer = document.getElementById('uploadContainer');
+        const uploadButton = document.getElementById('uploadButton');
+        const fileInput = document.getElementById('fileInput');
+        const addSectionContainer = document.getElementById('addSectionContainer');
+        const addSectionButton = document.getElementById('addSectionButton');
+        const mediaGallery = document.getElementById('mediaGallery');
+        const emptyState = document.getElementById('emptyState');
+        const sectionNav = document.querySelector('nav');
+        const currentSectionTitle = document.getElementById('currentSectionTitle');
+        const sectionModal = document.getElementById('sectionModal');
+        const sectionNameInput = document.getElementById('sectionNameInput');
+        const saveSectionButton = document.getElementById('saveSectionButton');
+        const cancelSectionButton = document.getElementById('cancelSectionButton');
+        const sectionError = document.getElementById('sectionError');
+        const userIdDisplay = document.getElementById('userIdDisplay');
+        
+        // Nuevo botón de candado y modal de contraseña
+        const lockButton = document.getElementById('lockButton');
+        const lockIcon = document.getElementById('lockIcon');
+        const passwordModal = document.getElementById('passwordModal');
+        const passwordInput = document.getElementById('passwordInput');
+        const unlockButton = document.getElementById('unlockButton');
+        const authError = document.getElementById('authError');
+        const cancelPasswordButton = document.getElementById('cancelPasswordButton');
+
+        // Variables de estado
+        let activeSectionId = null;
+        let sections = {};
+        let isUnlocked = false;
+        const PASSWORD = 'brisole';
+
+        // Escucha el cambio de estado de autenticación
+        window.auth.onAuthStateChanged(user => {
+            if (user) {
+                const userId = user.uid;
+                userIdDisplay.textContent = `ID de Usuario: ${userId}`;
+                initializePortfolio(userId);
+            }
+        });
+        
+        const setButtonState = (unlocked) => {
+            isUnlocked = unlocked;
+            uploadButton.disabled = !unlocked;
+            addSectionButton.disabled = !unlocked;
+
+            if (unlocked) {
+                uploadContainer.classList.remove('hidden');
+                addSectionContainer.classList.remove('hidden');
+                uploadButton.classList.add('unlocked-button');
+                uploadButton.classList.remove('locked-button');
+                addSectionButton.classList.add('unlocked-button');
+                addSectionButton.classList.remove('locked-button');
+                lockIcon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" d="M8 11V7a4 4 0 118 0v4m-5 4h.01M17 19h2a2 2 0 002-2v-7a2 2 0 00-2-2H5a2 2 0 00-2 2v7a2 2 0 002 2h2m-4 0h12a2 2 0 002-2v-7a2 2 0 00-2-2H5a2 2 0 00-2 2v7a2 2 0 002 2z" />`;
+            } else {
+                uploadContainer.classList.add('hidden');
+                addSectionContainer.classList.add('hidden');
+                uploadButton.classList.remove('unlocked-button');
+                uploadButton.classList.add('locked-button');
+                addSectionButton.classList.remove('unlocked-button');
+                addSectionButton.classList.add('locked-button');
+                lockIcon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-3a2 2 0 00-2-2H6a2 2 0 00-2 2v3a2 2 0 002 2z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M11 5v4h2V5a2 2 0 00-2-2h-1a2 2 0 00-2 2V5a2 2 0 00-2 2v4a2 2 0 00-2 2v3a2 2 0 002 2h12a2 2 0 002-2v-3a2 2 0 00-2-2v-4a2 2 0 00-2-2h-1a2 2 0 00-2 2z" />`;
+            }
+        };
+
+        // Lógica para mostrar/ocultar el modal de contraseña
+        lockButton.addEventListener('click', () => {
+            if (isUnlocked) {
+                setButtonState(false);
+            } else {
+                passwordModal.classList.remove('hidden');
+                passwordInput.value = '';
+                authError.classList.add('hidden');
+            }
+        });
+
+        // Lógica para desbloquear con la contraseña
+        unlockButton.addEventListener('click', () => {
+            if (passwordInput.value === PASSWORD) {
+                setButtonState(true);
+                passwordModal.classList.add('hidden');
+            } else {
+                authError.classList.remove('hidden');
+                passwordInput.value = '';
+            }
+        });
+
+        // Cierra el modal de contraseña
+        cancelPasswordButton.addEventListener('click', () => {
+            passwordModal.classList.add('hidden');
+        });
+
+        // Inicializa el portafolio y los listeners
+        const initializePortfolio = (userId) => {
+            // Escucha cambios en las secciones del usuario actual
+            const sectionsPath = `artifacts/${window.appId}/users/${userId}/portfolio_sections`;
+            const qSections = query(collection(window.db, sectionsPath));
+            onSnapshot(qSections, (querySnapshot) => {
+                sections = {};
+                querySnapshot.forEach((doc) => {
+                    sections[doc.id] = doc.data().name;
+                });
+                // Si no hay secciones, crea una por defecto
+                if (Object.keys(sections).length === 0) {
+                    const defaultSectionName = 'Mis Proyectos';
+                    addDoc(collection(window.db, sectionsPath), { name: defaultSectionName, userId: userId }).then(() => {
+                        console.log('Sección por defecto creada.');
+                    }).catch(error => console.error('Error al crear sección por defecto:', error));
+                }
+                
+                renderSections();
+                if (!activeSectionId || !sections[activeSectionId]) {
+                    activeSectionId = Object.keys(sections)[0];
+                }
+                renderMedia();
+            });
+        };
+
+        // Muestra el modal al hacer clic en el botón
+        addSectionButton.addEventListener('click', () => {
+            if (isUnlocked) {
+                sectionModal.classList.remove('hidden');
+            }
+        });
+
+        // Cierra el modal al hacer clic en el botón de cancelar
+        cancelSectionButton.addEventListener('click', () => {
+            sectionModal.classList.add('hidden');
+            sectionNameInput.value = '';
+            sectionError.classList.add('hidden');
+        });
+
+        // Guarda la nueva sección al hacer clic en el botón de guardar
+        saveSectionButton.addEventListener('click', async () => {
+            const userId = window.auth.currentUser?.uid;
+            if (!userId) {
+                console.error("Usuario no autenticado.");
+                return;
+            }
+
+            let sectionName = sectionNameInput.value.trim();
+            if (sectionName !== '') {
+                const sectionsPath = `artifacts/${window.appId}/users/${userId}/portfolio_sections`;
+                const q = query(collection(window.db, sectionsPath), where('name', '==', sectionName));
+                
+                // Verifica si la sección ya existe
+                const existingDocs = await getDocs(q);
+                if (existingDocs.empty) {
+                    try {
+                        const newSectionRef = await addDoc(collection(window.db, sectionsPath), {
+                            name: sectionName,
+                            userId: userId
+                        });
+                        activeSectionId = newSectionRef.id;
+                        sectionModal.classList.add('hidden');
+                        sectionNameInput.value = '';
+                    } catch (error) {
+                        console.error("Error al crear la sección:", error);
+                    }
+                } else {
+                    sectionError.classList.remove('hidden');
+                }
+            }
+        });
+
+        // Escucha el clic en el botón de "Subir Medios"
+        uploadButton.addEventListener('click', () => {
+            if (isUnlocked) {
+                fileInput.click();
+            }
+        });
+
+        // Escucha el cambio en el input de archivo
+        fileInput.addEventListener('change', (event) => {
+            handleFiles(event.target.files);
+        });
+
+        /**
+         * Lee los archivos seleccionados y los almacena en Firestore.
+         * @param {FileList} files - Lista de archivos seleccionados.
+         */
+        const handleFiles = (files) => {
+            if (!isUnlocked || !files.length || !activeSectionId) return;
+
+            const userId = window.auth.currentUser?.uid;
+            if (!userId) return;
+
+            const mediaPath = `artifacts/${window.appId}/users/${userId}/portfolio_media`;
+
+            Array.from(files).forEach(file => {
+                const reader = new FileReader();
+                reader.onload = async (e) => {
+                    const mediaObject = {
+                        name: file.name,
+                        type: file.type,
+                        dataUrl: e.target.result,
+                        sectionId: activeSectionId,
+                        userId: userId,
+                        timestamp: new Date()
+                    };
+                    try {
+                        await addDoc(collection(window.db, mediaPath), mediaObject);
+                    } catch (error) {
+                        console.error("Error al subir el medio:", error);
+                    }
+                };
+                reader.readAsDataURL(file);
+            });
+            fileInput.value = ''; // Resetea el input para poder subir los mismos archivos de nuevo
+        };
+
+        /**
+         * Renderiza los tabs de las secciones.
+         */
+        const renderSections = () => {
+            sectionNav.innerHTML = '';
+            const sectionIds = Object.keys(sections);
+            
+            sectionIds.forEach(id => {
+                const name = sections[id];
+                const button = document.createElement('button');
+                button.textContent = name;
+                button.className = `section-tab text-lg font-semibold py-2 px-4 transition-all duration-300 rounded-lg ${id === activeSectionId ? 'active text-pink-400' : 'text-gray-400 hover:text-white'}`;
+                button.onclick = () => {
+                    activeSectionId = id;
+                    renderSections();
+                    renderMedia();
+                };
+                sectionNav.appendChild(button);
+            });
+        };
+
+        /**
+         * Renderiza la galería de medios de la sección activa.
+         */
+        const renderMedia = () => {
+            mediaGallery.innerHTML = '';
+            if (activeSectionId) {
+                currentSectionTitle.textContent = sections[activeSectionId] || 'Cargando...';
+                currentSectionTitle.classList.remove('hidden');
+                emptyState.classList.add('hidden');
+
+                const userId = window.auth.currentUser?.uid;
+                if (!userId) return;
+                
+                const mediaPath = `artifacts/${window.appId}/users/${userId}/portfolio_media`;
+                const qMedia = query(collection(window.db, mediaPath), where('sectionId', '==', activeSectionId));
+
+                // Escucha en tiempo real los cambios en los medios de la sección activa
+                onSnapshot(qMedia, (querySnapshot) => {
+                    mediaGallery.innerHTML = ''; // Limpiar para evitar duplicados
+                    const media = [];
+                    querySnapshot.forEach((doc) => {
+                        media.push({ id: doc.id, ...doc.data() });
+                    });
+                    
+                    if (media.length === 0) {
+                        emptyState.classList.remove('hidden');
+                    } else {
+                        emptyState.classList.add('hidden');
+                    }
+
+                    media.forEach(item => {
+                        const div = document.createElement('div');
+                        div.className = 'media-grid-item bg-gray-800 rounded-xl shadow-lg overflow-hidden relative group';
+
+                        let mediaElement;
+                        if (item.type.startsWith('video/')) {
+                            mediaElement = document.createElement('video');
+                            mediaElement.src = item.dataUrl;
+                            mediaElement.controls = true;
+                            mediaElement.className = "w-full h-full object-cover transition-transform duration-300 group-hover:scale-105";
+                        } else if (item.type.startsWith('image/')) {
+                            mediaElement = document.createElement('img');
+                            mediaElement.src = item.dataUrl;
+                            mediaElement.alt = item.name;
+                            mediaElement.className = "w-full h-full object-cover transition-transform duration-300 group-hover:scale-105";
+                        }
+
+                        if (mediaElement) {
+                            div.appendChild(mediaElement);
+
+                            const deleteButton = document.createElement('button');
+                            deleteButton.innerHTML = `
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-9V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v2M12 21h7.862a2 2 0 001.995-1.858L22 7H2l.867 12.142A2 2 0 005.862 21H12z" />
+                                </svg>
+                            `;
+                            deleteButton.className = 'absolute top-2 right-2 p-2 bg-gray-800 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300';
+                            deleteButton.onclick = () => {
+                                if (isUnlocked) {
+                                  deleteMediaItem(item.id);
+                                }
+                            };
+                            div.appendChild(deleteButton);
+
+                            const titleOverlay = document.createElement('div');
+                            titleOverlay.textContent = item.name;
+                            titleOverlay.className = 'absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white text-center py-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300';
+                            div.appendChild(titleOverlay);
+
+                            mediaGallery.appendChild(div);
+                        }
+                    });
+                });
+            }
+        };
+
+        /**
+         * Elimina un medio de la base de datos.
+         * @param {string} docId - ID del documento del medio a eliminar.
+         */
+        const deleteMediaItem = async (docId) => {
+            const userId = window.auth.currentUser?.uid;
+            if (!userId) return;
+
+            const mediaPath = `artifacts/${window.appId}/users/${userId}/portfolio_media`;
+            try {
+                await deleteDoc(doc(window.db, mediaPath, docId));
+                console.log("Medio eliminado con éxito.");
+            } catch (error) {
+                console.error("Error al eliminar el medio:", error);
+            }
+        };
+    </script>
+</body>
+</html>
